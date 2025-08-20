@@ -1,0 +1,84 @@
+import boto3
+import json
+import os
+from decimal import Decimal
+
+# Inițializează clientul DynamoDB
+region = os.environ.get('AWS_REGION')
+dynamodb = boto3.resource('dynamodb', region_name=region)
+inventory_table = dynamodb.Table('alex-inventory')
+
+SHIPPING_COST_STANDARD = Decimal('50')
+SHIPPING_COST_REDUCED = Decimal('20')
+FREE_SHIPPING_THRESHOLD = Decimal('200')
+
+def lambda_handler(event, context):
+    """
+    Calculează prețul, transportul și scade stocul.
+    Primește evenimentul de la pasul anterior, care conține deja detaliile comenzii.
+    """
+    print(f"Calcul preț și scădere stoc pentru eveniment: {json.dumps(event, default=str)}")
+
+    # Preluăm datele comenzii din evenimentul primit de la Step Functions
+    order_items = event.get('detail', {}).get('items', [])
+    
+    total_items_price = Decimal('0')
+    items_with_full_details = []
+
+    try:
+        # Pas 1: Iterăm pentru a calcula prețul total și a valida încă o dată produsele
+        for item in order_items:
+            response = inventory_table.get_item(Key={'item_id': item['item_id']})
+            db_item = response['Item']
+            
+            item_price = db_item['price'] # Prețul este deja Decimal în DynamoDB
+            quantity = Decimal(str(item['quantity']))
+            
+            total_items_price += item_price * quantity
+            
+            # Salvăm detaliile complete pentru a le adăuga la output
+            items_with_full_details.append({
+                'item_id': item['item_id'],
+                'quantity': item['quantity'],
+                'price_per_unit': item_price
+            })
+
+        # Pas 2: Calculăm costul de transport
+        shipping_cost = SHIPPING_COST_STANDARD
+        if total_items_price > FREE_SHIPPING_THRESHOLD:
+            shipping_cost = SHIPPING_COST_REDUCED
+            
+        # Pas 3: Calculăm totalul final
+        final_price = total_items_price + shipping_cost
+
+        # Pas 4: Scădem stocul din inventar
+        for item in order_items:
+            inventory_table.update_item(
+                Key={'item_id': item['item_id']},
+                UpdateExpression="SET stock = stock - :val",
+                ExpressionAttributeValues={
+                    ':val': item['quantity']
+                }
+            )
+        print("Stocul a fost actualizat cu succes.")
+        
+        # Pregătim output-ul pentru următorul pas din State Machine
+        result = {
+            'processed_items': items_with_full_details,
+            'total_items_price': float(total_items_price), # Convertim în float pentru compatibilitate JSON
+            'shipping_cost': float(shipping_cost),
+            'final_price': float(final_price),
+            'payment_status': 'PENDING'
+        }
+        
+        # Adăugăm aceste calcule la evenimentul principal pentru a păstra contextul
+        event.update(result)
+        
+        return event
+
+    except Exception as e:
+        print(f"A apărut o eroare: {e}")
+        # În caz de eroare, State Machine va prinde excepția și o va trata
+        # Aici ar trebui implementată o logică de compensare (ex: adăugare stoc la loc),
+        # dar pentru simplitate, momentan doar aruncăm eroarea.
+        raise e
