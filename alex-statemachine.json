@@ -1,0 +1,169 @@
+{
+    "Comment": "A description of my state machine",
+    "StartAt": "alex-stock-verify",
+    "States": {
+        "alex-stock-verify": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "arn:aws:lambda:eu-central-1:022499048865:function:alex-stock-verify:$LATEST",
+                "Payload.$": "$"
+            },
+            "ResultPath": "$.Payload",
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2,
+                    "JitterStrategy": "FULL"
+                }
+            ],
+            "Next": "Choice"
+        },
+        "Choice": {
+            "Type": "Choice",
+            "Choices": [
+                {
+                    "Variable": "$.Payload.stock_check_status",
+                    "StringEquals": "SUCCESS",
+                    "Next": "Price Calculation"
+                }
+            ],
+            "Default": "Failed To Place Order"
+        },
+        "Failed To Place Order": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "arn:aws:lambda:eu-central-1:022499048865:function:alex-out-of-stock:$LATEST",
+                "Payload.$": "$"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2,
+                    "JitterStrategy": "FULL"
+                }
+            ],
+            "End": true
+        },
+        "Price Calculation": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "arn:aws:lambda:eu-central-1:022499048865:function:alex-price-calc:$LATEST",
+                "Payload.$": "$"
+            },
+            "ResultPath": "$.Payload",
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2,
+                    "JitterStrategy": "FULL"
+                }
+            ],
+            "Next": "Payment"
+        },
+        "Payment": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "arn:aws:lambda:eu-central-1:022499048865:function:alex-lambda-payment:$LATEST",
+                "Payload.$": "$"
+            },
+            "ResultPath": "$.Payload",
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2,
+                    "JitterStrategy": "FULL"
+                }
+            ],
+            "Next": "Choice (1)"
+        },
+        "Choice (1)": {
+            "Type": "Choice",
+            "Choices": [
+                {
+                    "Variable": "$.Payload.payment_outcome",
+                    "StringEquals": "SUCCESS",
+                    "Next": "Payment successful"
+                }
+            ],
+            "Default": "Payment failed"
+        },
+        "Payment failed": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "arn:aws:lambda:eu-central-1:022499048865:function:alex-payment-failed:$LATEST",
+                "Payload.$": "$"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2,
+                    "JitterStrategy": "FULL"
+                }
+            ],
+            "End": true
+        },
+        "Payment successful": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "arn:aws:lambda:eu-central-1:022499048865:function:alex-send-mail:$LATEST",
+                "Payload.$": "$"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2,
+                    "JitterStrategy": "FULL"
+                }
+            ],
+            "End": true
+        }
+    }
+}
