@@ -4,7 +4,7 @@ A serverless order processing system built with AWS Step Functions, Lambda, and 
 
 ## Overview
 
-This application implements an event-driven architecture where creating an object in the `alex-orders` table triggers an EventBridge rule that initiates the complete order processing workflow through a Step Function state machine.
+This application implements an event-driven architecture where creating an object in a DynamoDB table that acts like a trigger for an EventBridge rule that initiates the complete order processing workflow through a Step Function state machine.
 
 ## Architecture
 
@@ -62,10 +62,3 @@ The diagram shows the complete workflow from order creation through stock verifi
 3. Configure the Step Function state machine
 4. Set up EventBridge rules to trigger on order creation
 5. Deploy API Gateway with POST endpoint
-
-## Error Handling
-
-The system includes comprehensive error handling:
-- Stock validation failures return appropriate error messages
-- Payment failures are handled gracefully
-- Each step includes retry logic and error states
